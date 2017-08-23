@@ -14,6 +14,7 @@ import (
 	"unicode"
 
 	"github.com/jmoiron/sqlx"
+	"github.com/lib/pq"
 	"github.com/nuveo/log"
 	"github.com/prest/adapters/postgres/connection"
 	"github.com/prest/adapters/postgres/internal/scanner"
@@ -129,7 +130,7 @@ func chkInvalidIdentifier(identifer ...string) bool {
 // WhereByRequest create interface for queries + where
 func WhereByRequest(r *http.Request, initialPlaceholderID int) (whereSyntax string, values []interface{}, err error) {
 	whereKey := []string{}
-	whereValues := []string{}
+	values = []interface{}{}
 	var value, op string
 
 	pid := initialPlaceholderID
@@ -162,7 +163,7 @@ func WhereByRequest(r *http.Request, initialPlaceholderID int) (whereSyntax stri
 					fields := strings.Split(jsonField[0], ".")
 					jsonField[0] = fmt.Sprintf(`"%s"`, strings.Join(fields, `"."`))
 					whereKey = append(whereKey, fmt.Sprintf(`%s->>'%s' %s $%d`, jsonField[0], jsonField[1], op, pid))
-					whereValues = append(whereValues, value)
+					values = append(values, value)
 				default:
 					if chkInvalidIdentifier(keyInfo[0]) {
 						err = fmt.Errorf("invalid identifier: %s", keyInfo[0])
@@ -179,14 +180,31 @@ func WhereByRequest(r *http.Request, initialPlaceholderID int) (whereSyntax stri
 			}
 			fields := strings.Split(key, ".")
 			key = fmt.Sprintf(`"%s"`, strings.Join(fields, `"."`))
-			if value != "" {
-				whereKey = append(whereKey, fmt.Sprintf(`%s %s $%d`, key, op, pid))
-				whereValues = append(whereValues, value)
 
+			switch op {
+			case "IN", "NOT IN":
+				v := strings.Split(value, ",")
+				keyParams := make([]string, len(v))
+				for i := 0; i < len(v); i++ {
+					values = append(values, v[i])
+					keyParams[i] = fmt.Sprintf(`$%d`, pid+i)
+				}
+				pid += len(v)
+				whereKey = append(whereKey, fmt.Sprintf(`%s %s (%s)`, key, op, strings.Join(keyParams, ",")))
+
+			case "ANY", "SOME", "ALL":
+				whereKey = append(whereKey, fmt.Sprintf(`%s = %s ($%d)`, key, op, pid))
+				values = append(values, pq.Array(strings.Split(value, ",")))
 				pid++
-			} else {
+			case "IS NULL", "IS NOT NULL":
 				whereKey = append(whereKey, fmt.Sprintf(`%s %s`, key, op))
+
+			case "=", "!=", ">", ">=", "<", "<=":
+				whereKey = append(whereKey, fmt.Sprintf(`%s %s $%d`, key, op, pid))
+				values = append(values, value)
+				pid++
 			}
+
 		}
 	}
 
@@ -195,10 +213,6 @@ func WhereByRequest(r *http.Request, initialPlaceholderID int) (whereSyntax stri
 			whereSyntax += whereKey[i]
 		} else {
 			whereSyntax += " AND " + whereKey[i]
-		}
-
-		if i < len(whereValues) {
-			values = append(values, whereValues[i])
 		}
 	}
 
@@ -692,6 +706,12 @@ func GetQueryOperator(op string) (string, error) {
 		return "IN", nil
 	case "nin":
 		return "NOT IN", nil
+	case "any":
+		return "ANY", nil
+	case "some":
+		return "SOME", nil
+	case "all":
+		return "ALL", nil
 	case "notnull":
 		return "IS NOT NULL", nil
 	case "null":

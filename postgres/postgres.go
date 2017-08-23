@@ -130,7 +130,7 @@ func chkInvalidIdentifier(identifer ...string) bool {
 // WhereByRequest create interface for queries + where
 func WhereByRequest(r *http.Request, initialPlaceholderID int) (whereSyntax string, values []interface{}, err error) {
 	whereKey := []string{}
-	values = []interface{}{}
+	whereValues := []interface{}{}
 	var value, op string
 
 	pid := initialPlaceholderID
@@ -186,7 +186,7 @@ func WhereByRequest(r *http.Request, initialPlaceholderID int) (whereSyntax stri
 				v := strings.Split(value, ",")
 				keyParams := make([]string, len(v))
 				for i := 0; i < len(v); i++ {
-					values = append(values, v[i])
+					whereValues = append(whereValues, v[i])
 					keyParams[i] = fmt.Sprintf(`$%d`, pid+i)
 				}
 				pid += len(v)
@@ -194,14 +194,14 @@ func WhereByRequest(r *http.Request, initialPlaceholderID int) (whereSyntax stri
 
 			case "ANY", "SOME", "ALL":
 				whereKey = append(whereKey, fmt.Sprintf(`%s = %s ($%d)`, key, op, pid))
-				values = append(values, pq.Array(strings.Split(value, ",")))
+				whereValues = append(whereValues, pq.Array(strings.Split(value, ",")))
 				pid++
 			case "IS NULL", "IS NOT NULL":
 				whereKey = append(whereKey, fmt.Sprintf(`%s %s`, key, op))
 
 			case "=", "!=", ">", ">=", "<", "<=":
 				whereKey = append(whereKey, fmt.Sprintf(`%s %s $%d`, key, op, pid))
-				values = append(values, value)
+				whereValues = append(whereValues, value)
 				pid++
 			}
 
@@ -214,6 +214,9 @@ func WhereByRequest(r *http.Request, initialPlaceholderID int) (whereSyntax stri
 		} else {
 			whereSyntax += " AND " + whereKey[i]
 		}
+	}
+	if len(whereValues) > 0 {
+		values = whereValues
 	}
 
 	return

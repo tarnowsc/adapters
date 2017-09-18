@@ -196,7 +196,7 @@ func WhereByRequest(r *http.Request, initialPlaceholderID int) (whereSyntax stri
 				pid++
 			case "IS NULL", "IS NOT NULL":
 				whereKey = append(whereKey, fmt.Sprintf(`%s %s`, key, op))
-			case "=", "!=", ">", ">=", "<", "<=":
+			default: // "=", "!=", ">", ">=", "<", "<="
 				whereKey = append(whereKey, fmt.Sprintf(`%s %s $%d`, key, op, pid))
 				whereValues = append(whereValues, value)
 				pid++

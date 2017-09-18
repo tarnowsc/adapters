@@ -130,7 +130,7 @@ func chkInvalidIdentifier(identifer ...string) bool {
 // WhereByRequest create interface for queries + where
 func WhereByRequest(r *http.Request, initialPlaceholderID int) (whereSyntax string, values []interface{}, err error) {
 	whereKey := []string{}
-	whereValues := []interface{}{}
+	whereValues := []string{}
 	var value, op string
 
 	pid := initialPlaceholderID
@@ -194,7 +194,7 @@ func WhereByRequest(r *http.Request, initialPlaceholderID int) (whereSyntax stri
 
 			case "ANY", "SOME", "ALL":
 				whereKey = append(whereKey, fmt.Sprintf(`%s = %s ($%d)`, key, op, pid))
-				whereValues = append(whereValues, pq.Array(strings.Split(value, ",")))
+				whereValues = append(whereValues, FormatArray(strings.Split(value, ",")))
 				pid++
 			case "IS NULL", "IS NOT NULL":
 				whereKey = append(whereKey, fmt.Sprintf(`%s %s`, key, op))

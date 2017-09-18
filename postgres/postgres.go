@@ -14,7 +14,6 @@ import (
 	"unicode"
 
 	"github.com/jmoiron/sqlx"
-	"github.com/lib/pq"
 	"github.com/nuveo/log"
 	"github.com/prest/adapters/postgres/connection"
 	"github.com/prest/adapters/postgres/internal/scanner"
@@ -191,20 +190,17 @@ func WhereByRequest(r *http.Request, initialPlaceholderID int) (whereSyntax stri
 				}
 				pid += len(v)
 				whereKey = append(whereKey, fmt.Sprintf(`%s %s (%s)`, key, op, strings.Join(keyParams, ",")))
-
 			case "ANY", "SOME", "ALL":
 				whereKey = append(whereKey, fmt.Sprintf(`%s = %s ($%d)`, key, op, pid))
 				whereValues = append(whereValues, FormatArray(strings.Split(value, ",")))
 				pid++
 			case "IS NULL", "IS NOT NULL":
 				whereKey = append(whereKey, fmt.Sprintf(`%s %s`, key, op))
-
 			case "=", "!=", ">", ">=", "<", "<=":
 				whereKey = append(whereKey, fmt.Sprintf(`%s %s $%d`, key, op, pid))
 				whereValues = append(whereValues, value)
 				pid++
 			}
-
 		}
 	}
 
@@ -215,10 +211,10 @@ func WhereByRequest(r *http.Request, initialPlaceholderID int) (whereSyntax stri
 			whereSyntax += " AND " + whereKey[i]
 		}
 	}
-	if len(whereValues) > 0 {
-		values = whereValues
-	}
 
+	for i := 0; i < len(whereValues); i++ {
+		values = append(values, whereValues[i])
+	}
 	return
 }
 
